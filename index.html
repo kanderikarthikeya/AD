@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Motion Capture Studio - Real-time AI Motion Tracking & 3D Character Animation</title>
+  <meta name="description" content="An interactive real-time webcam motion capture web application using MediaPipe Pose AI and Three.js 3D character animation.">
+
+  <!-- Google Fonts: Outfit & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+
+  <!-- Three.js & Controls -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- MediaPipe Pose & Camera Utilities -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <!-- Ambient Gradient Background -->
+  <div class="bg-ambient">
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+    <div class="bg-orb orb-3"></div>
+  </div>
+
+  <div class="app-container">
+    <!-- Top Header Bar -->
+    <header class="header-bar">
+      <div class="brand-section">
+        <div class="brand-logo">
+          <i class="fas fa-person-running"></i>
+        </div>
+        <div class="brand-info">
+          <h1>
+            MOCAP STUDIO
+            <span class="badge-tag">AI 3D Realtime</span>
+          </h1>
+          <p>Webcam Motion Capture & Digital Character Activity</p>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="tracking-pill" id="tracking-pill">
+          <div class="pulse-dot"></div>
+          <span id="tracking-status-text">Ready</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Start / Stop Capture -->
+        <button id="btn-toggle-capture" class="btn btn-primary" title="Toggle Webcam AI Tracking">
+          <i class="fas fa-video"></i>
+          <span>Start Capture</span>
+        </button>
+
+        <!-- Record Mocap -->
+        <button id="btn-record-mocap" class="btn btn-secondary" title="Record Motion Keyframes">
+          <i class="fas fa-circle"></i>
+          <span>Record</span>
+        </button>
+
+        <!-- Grid Toggle -->
+        <button id="btn-toggle-grid" class="btn btn-icon btn-secondary active" title="Toggle Floor Grid">
+          <i class="fas fa-border-all"></i>
+        </button>
+
+        <!-- Sound FX Toggle -->
+        <button id="btn-toggle-sound" class="btn btn-icon btn-secondary active" title="Toggle Audio Feedback">
+          <i class="fas fa-volume-up"></i>
+        </button>
+
+        <!-- Help & Instructions -->
+        <button id="btn-open-help" class="btn btn-icon btn-cyber" title="User Guide & Presentation Notes">
+          <i class="fas fa-circle-question"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Workspace Stage -->
+    <main class="main-stage">
+      <!-- 3D WebGL Canvas Viewport -->
+      <div id="viewport-3d-wrapper" class="viewport-3d-wrapper">
+        <!-- Top HUD Controls on 3D Viewport -->
+        <div class="viewport-hud-top">
+          <!-- Camera Presets -->
+          <div class="view-presets" title="Camera Angles">
+            <button class="view-preset-btn active" data-view="perspective">Perspective</button>
+            <button class="view-preset-btn" data-view="front">Front</button>
+            <button class="view-preset-btn" data-view="side">Side</button>
+            <button class="view-preset-btn" data-view="closeup">Close-up</button>
+          </div>
+
+          <!-- Avatar Mode Selector -->
+          <div class="avatar-selector-box" title="Switch Avatar Style">
+            <button class="avatar-mode-btn active" data-avatar="mannequin">
+              <i class="fas fa-robot"></i>
+              <span>3D Robot</span>
+            </button>
+            <button class="avatar-mode-btn" data-avatar="skeleton">
+              <i class="fas fa-bone"></i>
+              <span>Cyber Skeleton</span>
+            </button>
+            <button class="avatar-mode-btn" data-avatar="neon">
+              <i class="fas fa-bolt"></i>
+              <span>Neon Wire</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3D Navigation Guide -->
+        <div class="orbit-tip">
+          <i class="fas fa-arrows-up-down-left-right"></i>
+          <span>Drag to Rotate • Right-Click / Two-Finger to Pan • Scroll to Zoom</span>
+        </div>
+      </div>
+
+      <!-- Live Webcam & Kinematics HUD Panel -->
+      <aside class="webcam-hud-panel" id="webcam-hud-panel">
+        <div class="hud-header">
+          <div class="hud-title">
+            <i class="fas fa-camera"></i>
+            <span>Live Vision HUD</span>
+          </div>
+          <div class="hud-controls">
+            <button id="btn-toggle-mirror" class="hud-btn-mini active" title="Mirror / Flip Video">
+              <i class="fas fa-arrows-alt-h"></i>
+            </button>
+            <button id="btn-toggle-overlay" class="hud-btn-mini active" title="Toggle 2D Skeleton Overlay">
+              <i class="fas fa-draw-polygon"></i>
+            </button>
+            <button id="btn-minimize-hud" class="hud-btn-mini" title="Minimize / Expand Panel">
+              <i class="fas fa-chevron-up"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="webcam-body">
+          <video id="webcam-video" playsinline muted></video>
+          <canvas id="overlay-canvas"></canvas>
+
+          <div class="webcam-placeholder" id="webcam-placeholder">
+            <div class="placeholder-icon">
+              <i class="fas fa-camera-retro"></i>
+            </div>
+            <div>
+              <strong>Webcam Offline</strong>
+              <p style="font-size: 0.72rem; margin-top: 4px; color: #8c9bb5;">Click "Start Capture" or pick a Demo Clip below</p>
+            </div>
+          </div>
+
+          <div class="webcam-badges">
+            <span class="cam-badge" id="cam-resolution-badge">Offline</span>
+            <span class="cam-badge" style="color: var(--accent-cyan);">BlazePose ML</span>
+          </div>
+        </div>
+
+        <!-- Telemetry & Kinematics Body -->
+        <div class="telemetry-body">
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-label">FPS</div>
+              <div class="metric-value" id="val-fps">--</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Confidence</div>
+              <div class="metric-value" id="val-confidence">--%</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">Joints</div>
+              <div class="metric-value" id="val-joints">0 / 33</div>
+            </div>
+          </div>
+
+          <!-- Joint Angles Kinematics -->
+          <div class="angles-box">
+            <div class="angles-header">
+              <span>Kinematics Angles</span>
+              <span><i class="fas fa-calculator"></i> Real-time</span>
+            </div>
+            <div class="angles-row">
+              <div class="angle-item">
+                <span>L. Elbow:</span>
+                <span id="angle-l-elbow">--°</span>
+              </div>
+              <div class="angle-item">
+                <span>R. Elbow:</span>
+                <span id="angle-r-elbow">--°</span>
+              </div>
+              <div class="angle-item">
+                <span>L. Knee:</span>
+                <span id="angle-l-knee">--°</span>
+              </div>
+              <div class="angle-item">
+                <span>R. Knee:</span>
+                <span id="angle-r-knee">--°</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Bottom Mocap Control Dock (Playback & Recording) -->
+    <footer class="bottom-dock">
+      <div class="dock-main">
+        <!-- Left: Quick Mocap Actions -->
+        <div class="dock-left-actions">
+          <button id="btn-export-json" class="btn btn-sm btn-secondary" disabled title="Export Recorded Mocap Data as JSON">
+            <i class="fas fa-file-export"></i>
+            <span>Export Data</span>
+          </button>
+          <button id="btn-import-json" class="btn btn-sm btn-secondary" title="Load Previously Exported Mocap JSON">
+            <i class="fas fa-file-import"></i>
+            <span>Import</span>
+          </button>
+          <input type="file" id="file-import-input" accept=".json" style="display: none;">
+        </div>
+
+        <!-- Center: Playback Timeline & Scrubber -->
+        <div class="dock-center-playback">
+          <div class="playback-controls-row">
+            <div class="transport-buttons">
+              <button id="btn-play-pause" class="btn btn-sm btn-secondary" disabled title="Play / Pause Recording">
+                <i class="fas fa-play"></i>
+              </button>
+              <button id="btn-loop-toggle" class="btn btn-sm btn-secondary active" title="Toggle Loop Playback">
+                <i class="fas fa-repeat"></i>
+              </button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Speed:</span>
+              <select id="playback-speed" class="speed-select" title="Playback Speed">
+                <option value="0.5">0.5x</option>
+                <option value="1.0" selected>1.0x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2.0">2.0x</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="timeline-row">
+            <span class="timeline-time" id="timeline-current-time">0.0s</span>
+            <div class="timeline-slider-wrap">
+              <input type="range" id="timeline-slider" class="timeline-slider" min="0" max="100" value="0" step="0.1" disabled>
+            </div>
+            <span class="timeline-time" id="timeline-total-time">0.0s</span>
+          </div>
+        </div>
+
+        <!-- Right: Audio & Shortcut Info -->
+        <div class="dock-right-options">
+          <span style="font-size: 0.72rem; color: var(--text-dim); display: flex; align-items: center; gap: 6px;">
+            <i class="fas fa-keyboard"></i>
+            <span>[Space] Play/Stop &bull; [R] Record</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Demo Motion Clips Bar -->
+      <div class="demo-clips-bar">
+        <span><i class="fas fa-wand-magic-sparkles"></i> Demo Clips:</span>
+        <button class="demo-chip" data-demo="wave">
+          <i class="fas fa-hand"></i> Wave & Welcome
+        </button>
+        <button class="demo-chip" data-demo="jacks">
+          <i class="fas fa-person-walking"></i> Jumping Jacks
+        </button>
+        <button class="demo-chip" data-demo="fight">
+          <i class="fas fa-hand-fist"></i> Boxing Combo
+        </button>
+        <button class="demo-chip" data-demo="dance">
+          <i class="fas fa-music"></i> Dance Groove
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Instructions & College Presentation Modal -->
+  <div class="modal-overlay" id="modal-help">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i class="fas fa-graduation-cap" style="color: var(--accent-cyan);"></i>
+          <span>Motion Capture Activity - College Guide</span>
+        </div>
+        <button class="btn btn-icon btn-ghost" id="btn-close-help">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="guide-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Start Live Motion Capture</h3>
+            <p>Click <strong>Start Capture</strong> in the top header. Allow webcam access when prompted by the browser. Stand 1.5 to 2.5 meters away so your upper body or full body is visible.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Explore 3D Digital Character Modes</h3>
+            <p>Switch between the <strong>3D Robot Mannequin</strong>, <strong>Cyber Skeleton</strong>, and <strong>Neon Wire</strong> avatars. Use your mouse or touchscreen to orbit, pan, and inspect the character from any camera angle.</p>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Record & Playback Motion Keyframes</h3>
+            <p>Click <strong>Record</strong> to capture a sequence of movements. Click <strong>Stop Rec</strong> when finished. Use the playback timeline scrubber, loop toggle, and speed selector to inspect the recorded motion in slow-motion.</p>
+          </div>
+        </div>
+
+        <div class="tech-callout">
+          <strong><i class="fas fa-microchip"></i> How It Works (For College Viva & Demos):</strong>
+          <br>
+          1. <strong>Computer Vision & ML:</strong> Uses Google MediaPipe BlazePose to infer 33 3D body keypoints directly on the client side using WebAssembly and WebGL acceleration.
+          <br>
+          2. <strong>Exponential Moving Average (EMA) Filtering:</strong> Raw camera landmark coordinates undergo mathematical low-pass smoothing to eliminate high-frequency video jitter.
+          <br>
+          3. <strong>Forward Kinematics & Three.js 3D Rigging:</strong> The 3D coordinates drive a volumetric geometric humanoid avatar with articulated limb segments and joint rotations.
+          <br>
+          4. <strong>Zero Server Overhead:</strong> Runs 100% locally in your browser with private client-side processing.
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="document.getElementById('modal-help').classList.remove('active')">
+          <span>Got it! Start Activity</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Application Logic Scripts -->
+  <script src="js/audio.js"></script>
+  <script src="js/mocap-recorder.js"></script>
+  <script src="js/three-scene.js"></script>
+  <script src="js/pose-tracker.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
